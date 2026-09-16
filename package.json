@@ -1,0 +1,46 @@
+{
+  "name": "namegender-mcp",
+  "version": "0.1.1",
+  "mcpName": "io.github.anpekesen/namegender",
+  "description": "Model Context Protocol server for the NameGender API — gender from names, emails and usernames, with the evidence behind every answer",
+  "type": "module",
+  "bin": {
+    "namegender-mcp": "src/index.js"
+  },
+  "main": "src/index.js",
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "gender",
+    "name",
+    "namegender",
+    "claude"
+  ],
+  "author": "NameGender <support@namegender.com>",
+  "license": "MIT",
+  "homepage": "https://namegender.com/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anpekesen/namegender-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/anpekesen/namegender-mcp/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

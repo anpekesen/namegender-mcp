@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.anpekesen/namegender",
+  "title": "NameGender",
+  "description": "Gender from names, emails and usernames, with probability, sample size and source on every answer.",
+  "repository": {
+    "url": "https://github.com/anpekesen/namegender-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://namegender.com/docs",
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "namegender-mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "NAMEGENDER_API_KEY",
+          "description": "API key from the namegender.com dashboard",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
