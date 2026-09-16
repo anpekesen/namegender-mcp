@@ -1,8 +1,8 @@
 # Release: a v* tag publishes the package to npm and the server to the
 # official MCP registry.
 #
-#   npm version patch   # bumps package.json; then match server.json
-#   git push && git push --tags
+#   npm version patch   # bumps package.json and server.json, tags the commit
+#   git push --follow-tags
 #
 # No secrets. npm uses trusted publishing (GitHub OIDC), which needs the
 # package's Trusted Publisher on npmjs.com set to this repository and
