@@ -92,3 +92,14 @@ npm test
 ```
 
 MIT licensed.
+
+## Releasing
+
+```sh
+npm version patch   # also updates server.json
+git push --follow-tags
+```
+
+The `v*` tag runs `.github/workflows/release.yml`: tests, then npm (trusted
+publishing, no token), then the MCP registry (GitHub OIDC). Re-running the
+workflow skips whatever is already published.

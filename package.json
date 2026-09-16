@@ -14,7 +14,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "version": "node scripts/sync-server-version.mjs && git add server.json"
   },
   "engines": {
     "node": ">=18"

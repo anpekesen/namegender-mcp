@@ -1,0 +1,116 @@
+# Release: a v* tag publishes the package to npm and the server to the
+# official MCP registry.
+#
+#   npm version patch   # bumps package.json; then match server.json
+#   git push && git push --tags
+#
+# No secrets. npm uses trusted publishing (GitHub OIDC), which needs the
+# package's Trusted Publisher on npmjs.com set to this repository and
+# release.yml. The registry accepts the same GitHub identity through
+# `mcp-publisher login github-oidc`, because the server name is
+# io.github.anpekesen/*.
+#
+# Safe to re-run: a step whose version is already published is skipped,
+# so a registry failure can be retried without npm refusing the version.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write # OIDC for npm trusted publishing and the MCP registry
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.1
+      MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+    steps:
+      - uses: actions/checkout@v4
+
+      # Trusted publishing needs Node 22.14+ and npm 11.5.1+.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install -g npm@^11.5.1
+
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+
+      # A published npm version can never be replaced, so a tag that does
+      # not match the files stops here.
+      - name: Tag matches package.json and server.json
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          server=$(node -p "require('./server.json').version")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$version" != "$tag" ] || [ "$server" != "$tag" ]; then
+            echo "tag $tag, package.json $version, server.json $server: they must match" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "name=$(node -p "require('./package.json').name")" >> "$GITHUB_OUTPUT"
+          echo "mcp_name=$(node -p "require('./server.json').name")" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to npm
+        env:
+          NAME: ${{ steps.version.outputs.name }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION is already on npm, skipping"
+          else
+            npm publish --access public
+          fi
+
+      # npm can take a minute or two to serve a new version, and the
+      # registry rejects a server whose package it cannot find yet.
+      - name: Wait for npm to serve the version
+        env:
+          NAME: ${{ steps.version.outputs.name }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for i in $(seq 1 60); do
+            if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+              echo "available after about $((i * 10)) seconds"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "$NAME@$VERSION did not appear on npm within 10 minutes" >&2
+          exit 1
+
+      # Pinned version and checksum: a changed download stops the release
+      # instead of running with this repository's publishing identity.
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
+          rm mcp-publisher.tar.gz
+
+      - name: Publish to the MCP registry
+        env:
+          MCP_NAME: ${{ steps.version.outputs.mcp_name }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          listed=$(curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers?search=${MCP_NAME}" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s).servers||[];console.log(r.some(x=>(x.server||x).name===process.argv[1]&&(x.server||x).version===process.argv[2])?"yes":"no")})' \
+              "$MCP_NAME" "$VERSION")
+          if [ "$listed" = "yes" ]; then
+            echo "$MCP_NAME $VERSION is already in the registry, skipping"
+            exit 0
+          fi
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
