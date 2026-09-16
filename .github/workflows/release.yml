@@ -105,10 +105,12 @@ jobs:
           MCP_NAME: ${{ steps.version.outputs.mcp_name }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          listed=$(curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers?search=${MCP_NAME}" \
-            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s).servers||[];console.log(r.some(x=>(x.server||x).name===process.argv[1]&&(x.server||x).version===process.argv[2])?"yes":"no")})' \
-              "$MCP_NAME" "$VERSION")
-          if [ "$listed" = "yes" ]; then
+          # The version endpoint, not ?search=: search results lag behind a
+          # publish, and a re-run would then try to publish a version twice.
+          encoded=$(node -p 'encodeURIComponent(process.argv[1])' "$MCP_NAME")
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://registry.modelcontextprotocol.io/v0/servers/${encoded}/versions/${VERSION}")
+          if [ "$status" = "200" ]; then
             echo "$MCP_NAME $VERSION is already in the registry, skipping"
             exit 0
           fi
