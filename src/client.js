@@ -1,9 +1,9 @@
 /**
  * NameGender API istemcisi.
  *
- * MCP sunucusundan AYRI duruyor çünkü iki farklı sorumluluk: burası HTTP ve
- * hata çevirisi, orası araç tanımları. Ayrı olduğu için test edilebiliyor —
- * MCP taşıma katmanını ayağa kaldırmadan.
+ * Kept apart from the MCP server because the jobs differ: this file does HTTP
+ * and error translation, the server defines tools. Being separate, it can be
+ * tested without starting the MCP transport.
  */
 
 const DEFAULT_BASE_URL = 'https://namegender.com/api/v1';
@@ -57,9 +57,9 @@ export class NameGenderClient {
   // ----------------------------------------------------------------
 
   #post(path, body) {
-    // Tanımsız alanlar gövdeden düşürülüyor: `country: undefined` JSON'a
-    // `null` olarak gitmez ama bazı istemcilerde boş dize olur ve API
-    // doğrulaması ISO ülke kodu beklediği için 422 döner.
+    // Empty fields are dropped from the body. `country: undefined` does not
+    // reach JSON as null, but some clients turn it into an empty string, and
+    // the API answers 422 because it expects an ISO country code.
     const clean = Object.fromEntries(
       Object.entries(body).filter(([, v]) => v !== undefined && v !== null && v !== ''),
     );
@@ -69,8 +69,8 @@ export class NameGenderClient {
 
   async #request(method, path, body) {
     /*
-     * Zaman aşımı ZORUNLU. MCP sunucusu bir istemcinin içinde yaşıyor;
-     * yanıtsız kalan bir istek aracı değil, tüm oturumu askıda bırakır.
+     * The timeout is required. The MCP server lives inside a client; a request
+     * that never answers stalls the whole session, not just the tool.
      */
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -102,11 +102,10 @@ export class NameGenderClient {
 
     if (!response.ok) {
       /*
-       * API her hatayı tek gövdeyle döndürüyor: {error, message, request_id, docs}.
-       * Başarı gövdede bir bayrakla değil, HTTP statüsüyle bildiriliyor.
-       * request_id'yi taşımak önemli — destek bir sorunu ancak o numarayla
-       * izleyebiliyor ve modelin ürettiği metinde kaybolursa kullanıcı onu
-       * bir daha bulamıyor.
+       * The API returns every error in one shape: {error, message, request_id, docs}.
+       * Success is the HTTP status, not a flag in the body. Carrying request_id
+       * matters: support can only trace a problem by that number, and if it is
+       * lost in the model's text the user cannot find it again.
        */
       throw new NameGenderError(
         payload?.message ?? `NameGender returned ${response.status}.`,

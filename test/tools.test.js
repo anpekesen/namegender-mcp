@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { NameGenderClient, NameGenderError } from '../src/client.js';
 import { formatResult, formatBulk, formatCountries, formatAccount, formatError, TOOL_DEFINITIONS } from '../src/tools.js';
 
-/** Sahte fetch: gövdeyi ve başlıkları kaydeder. */
+/** Fake fetch that records the body and headers. */
 function fakeFetch(response, status = 200) {
   const calls = [];
 
@@ -23,7 +23,7 @@ function fakeFetch(response, status = 200) {
   return impl;
 }
 
-test('anahtar Bearer başlığıyla gönderilir', async () => {
+test('sends the key in a Bearer header', async () => {
   const fetchImpl = fakeFetch({ gender: 'female' });
   const client = new NameGenderClient({ apiKey: 'ng_live_x', fetchImpl });
 
@@ -32,7 +32,7 @@ test('anahtar Bearer başlığıyla gönderilir', async () => {
   assert.equal(fetchImpl.calls[0].init.headers.Authorization, 'Bearer ng_live_x');
 });
 
-test('bütün uçlar /api/v1 altında çağrılır', async () => {
+test('calls every endpoint under /api/v1', async () => {
   const fetchImpl = fakeFetch({});
   const client = new NameGenderClient({ apiKey: 'k', fetchImpl });
 
@@ -53,9 +53,9 @@ test('bütün uçlar /api/v1 altında çağrılır', async () => {
   ]);
 });
 
-test('boş ülke kodu gövdeye konmaz', async () => {
-  // Ölçülen hata: country: undefined JSON'da boş dizeye dönüşünce API
-  // "iki harf" beklediği için 422 dönüyordu.
+test('leaves an empty country code out of the body', async () => {
+  // Observed bug: country: undefined became an empty string in JSON and the
+  // API answered 422 because it expects two letters.
   const fetchImpl = fakeFetch({ gender: 'male' });
   const client = new NameGenderClient({ apiKey: 'k', fetchImpl });
 
@@ -64,7 +64,7 @@ test('boş ülke kodu gövdeye konmaz', async () => {
   assert.deepEqual(JSON.parse(fetchImpl.calls[0].init.body), { name: 'Ali' });
 });
 
-test('hata gövdesi tiplenmiş hataya çevrilir ve request_id korunur', async () => {
+test('turns an error body into a typed error and keeps request_id', async () => {
   const fetchImpl = fakeFetch(
     { error: 'no_credits', message: 'Krediniz bitti.', request_id: 'req_42', docs: 'https://namegender.com/docs' },
     402,
@@ -84,7 +84,7 @@ test('hata gövdesi tiplenmiş hataya çevrilir ve request_id korunur', async ()
   );
 });
 
-test('kredi bitti hatası ne yapılacağını söyler ve istek numarasını taşır', () => {
+test('an out-of-credits error says what to do and carries the request ID', () => {
   const result = formatError(
     new NameGenderError('Krediniz bitti.', { status: 402, code: 'no_credits', requestId: 'req_9' }),
   );
@@ -94,7 +94,7 @@ test('kredi bitti hatası ne yapılacağını söyler ve istek numarasını taş
   assert.match(result.content[0].text, /req_9/);
 });
 
-test('sonuç metni kanıtı da taşır', () => {
+test('the result text carries the evidence', () => {
   const line = formatResult({
     query: 'Ayşe', gender: 'female', probability: 99, sample_size: 12345,
     source: 'ssa', country: 'TR', matched_as: 'ayse',
@@ -102,13 +102,13 @@ test('sonuç metni kanıtı da taşır', () => {
 
   assert.match(line, /female/);
   assert.match(line, /99%/);
-  assert.match(line, /12,345/);      // en-US binlik ayracı
+  assert.match(line, /12,345/);      // en-US thousands separator
   assert.match(line, /ssa/);
 });
 
-test('örneklemi olmayan cevap kesinlik iddia etmez', () => {
-  // Bu ürünün en önemli davranışı: sayımı olmayan bir kaynağın %95'i,
-  // sayıma dayanan bir %95 gibi GÖRÜNMEMELİ.
+test('an answer without a sample claims no certainty', () => {
+  // The most important behaviour here: 95% from a source without counts must
+  // NOT look like 95% backed by counted people.
   const line = formatResult({
     query: 'Kamon', gender: 'male', probability: 95, sample_size: 0,
     source: 'wgnd', confidence: 'unverified',
@@ -117,7 +117,7 @@ test('örneklemi olmayan cevap kesinlik iddia etmez', () => {
   assert.match(line, /unverified/);
 });
 
-test('toplu sonuç özetle başlar', () => {
+test('a bulk result starts with the summary', () => {
   const out = formatBulk({
     summary: { total: 2, identified: 1, unknown: 1, match_rate: 50 },
     results: [
@@ -130,7 +130,7 @@ test('toplu sonuç özetle başlar', () => {
   assert.match(out, /Xyz: unknown/);
 });
 
-test('hesap özeti kalan krediyi ve bakiyede kaldığını söyler', () => {
+test('the account summary shows remaining credits and that they stay on the balance', () => {
   const out = formatAccount({
     credits_remaining: 1500, free_today: 40, free_daily_limit: 100,
     purchased_credits: 1000, data_version: '2026.08',
@@ -142,19 +142,19 @@ test('hesap özeti kalan krediyi ve bakiyede kaldığını söyler', () => {
   assert.match(out, /2026\.08/);
 });
 
-test('her aracın adı, açıklaması ve şeması var', () => {
+test('every tool has a name, a description and a schema', () => {
   assert.equal(TOOL_DEFINITIONS.length, 6);
 
   for (const tool of TOOL_DEFINITIONS) {
     assert.ok(tool.name, 'ad zorunlu');
-    assert.ok(tool.description.length > 40, `${tool.name}: açıklama çok kısa`);
+    assert.ok(tool.description.length > 40, `${tool.name}: description too short`);
     assert.equal(tool.inputSchema.type, 'object');
   }
 });
 
-test('ülke listesi sıralamanın sınırını söyler', () => {
-  // Modelin "Mehmet Fransız bir addır" dememesi buna bağlı: sayımlı liste
-  // yalnızca yedi ülkeyi kapsıyor ve Türkiye onların arasında değil.
+test('the country list states the limit of its ranking', () => {
+  // This is what keeps a model from saying "Mehmet is a French name": the
+  // counted list covers only seven countries and Turkey is not one of them.
   const out = formatCountries({
     basis: { counted_countries: 2, attested_countries: 3, note: 'Shares are calculated only across…' },
     registrations: [
@@ -165,13 +165,13 @@ test('ülke listesi sıralamanın sınırını söyler', () => {
   });
 
   assert.match(out, /FR/);
-  assert.match(out, /TR/);                       // sıralamada yok ama tanıklıkta var
-  assert.match(out, /only across/);              // sınır beyanı taşınıyor
+  assert.match(out, /TR/);                       // not ranked, but attested
+  assert.match(out, /only across/);              // the limit statement is kept
 });
 
-test('geçersiz ve iptal edilmiş anahtar hangi değişkene bakılacağını söyler', () => {
-  // API anahtar hatalarını üç ayrı kodla dönüyor; yalnızca missing_key'e
-  // ipucu vermek, en sık görülen durumda (yanlış anahtar) modeli çaresiz bırakıyordu.
+test('invalid and revoked keys point to the environment variable', () => {
+  // The API reports key problems with three codes; a hint for missing_key only
+  // left the model helpless in the most common case, a wrong key.
   for (const code of ['missing_key', 'invalid_key', 'revoked_key']) {
     const result = formatError(new NameGenderError('Key problem.', { status: 401, code }));
 
@@ -179,9 +179,9 @@ test('geçersiz ve iptal edilmiş anahtar hangi değişkene bakılacağını sö
   }
 });
 
-test('sunucu, package.json ve server.json aynı sürümü bildirir', async () => {
-  // MCP registry npm'de olmayan sürümü reddediyor; üç yerden biri geride
-  // kalırsa yayın ya da istemcinin gördüğü sürüm yanlış olur.
+test('the server, package.json and server.json report the same version', async () => {
+  // The MCP registry rejects a version that is not on npm; if one of the three
+  // falls behind, the release or the version clients see is wrong.
   const { readFile } = await import('node:fs/promises');
   const { VERSION } = await import('../src/index.js');
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));

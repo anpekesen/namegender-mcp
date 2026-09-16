@@ -1,8 +1,8 @@
 /**
- * MCP araç tanımları ve sonuç biçimlendirme.
+ * MCP tool definitions and result formatting.
  *
- * Taşıma katmanından ayrı: buradaki her şey saf girdi→çıktı, dolayısıyla
- * sunucuyu ayağa kaldırmadan test edilebiliyor.
+ * Separate from the transport: everything here is pure input to output, so it
+ * can be tested without starting the server.
  */
 
 import { NameGenderError } from './client.js';
@@ -121,12 +121,12 @@ export const TOOL_DEFINITIONS = [
 ];
 
 /**
- * Tek bir sonucu insan ve model için okunur hâle getirir.
+ * Makes one result readable for people and models.
  *
- * Neden ham JSON değil: modele ham gövde vermek, `sample_size` ve `source`
- * alanlarının cevabın içinde kaybolmasına yol açıyor. Oysa bu üründe asıl
- * söylenmesi gereken şey tam olarak o: cevap ne kadar sağlam ve nereden geldi.
- * Ham gövde yine de ekleniyor — modelin gerekirse alanlara erişmesi için.
+ * Why not raw JSON: given the raw body, a model loses `sample_size` and
+ * `source` inside the answer, and those are exactly what matters here: how
+ * solid the answer is and where it came from. The raw body is still attached
+ * for when the model needs a field.
  */
 export function formatResult(result) {
   const parts = [
@@ -140,8 +140,8 @@ export function formatResult(result) {
   if (typeof result.sample_size === 'number' && result.sample_size > 0) {
     parts.push(`sample ${result.sample_size.toLocaleString('en-US')}`);
   } else if (result.confidence === 'unverified') {
-    // Sayımı olmayan kaynak: kesinlik iddia etmediğimizi AÇIKÇA söylemek
-    // gerekiyor, yoksa %95 bir sayıma dayanıyormuş gibi okunuyor.
+    // A source without counts: say EXPLICITLY that no certainty is claimed,
+    // otherwise 95% reads as if it rested on a count.
     parts.push('no sample (unverified)');
   }
 
@@ -176,11 +176,11 @@ export function formatBulk(payload) {
 }
 
 /**
- * Ülke dağılımını biçimlendirir.
+ * Formats a country distribution.
  *
- * İki liste AYRI yazılır ve sıralamanın sınırı en üstte söylenir. Tek liste
- * hâlinde vermek modelin "Mehmet Fransız bir addır" demesine yol açar —
- * ölçüldü: sayımlı veride Fransa %59 ile başta, Türkiye ise hiç yok.
+ * The two lists are written SEPARATELY and the ranking's limit is stated first.
+ * As a single list, a model says "Mehmet is a French name". This was measured:
+ * in the counted data France leads with 59% and Turkey does not appear at all.
  */
 export function formatCountries(payload) {
   const basis = payload.basis ?? {};
@@ -217,11 +217,11 @@ export function formatAccount(payload) {
 }
 
 /**
- * Bir hatayı MCP araç sonucuna çevirir.
+ * Turns an error into an MCP tool result.
  *
- * `isError: true` ile dönmek, istisna fırlatmaktan farklı: model hatayı
- * görür ve ona göre davranabilir (krediyi kontrol eder, ülke kodunu düzeltir).
- * İstisna ise oturumu bozar ve modele hiçbir şey anlatmaz.
+ * Returning `isError: true` differs from throwing: the model sees the error and
+ * can act on it (check credits, fix a country code). A thrown exception breaks
+ * the session and tells the model nothing.
  */
 export function formatError(error) {
   if (!(error instanceof NameGenderError)) {

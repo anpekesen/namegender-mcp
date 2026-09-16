@@ -3,9 +3,9 @@
 /**
  * NameGender MCP sunucusu.
  *
- * Amaç dağıtım: MCP destekleyen bir istemcide (Claude Desktop, Claude Code,
- * Cursor ve dahası) kullanıcı "şu listedeki adların cinsiyetini bul" diyor ve
- * API'ye kod yazmadan bağlanmış oluyor.
+ * In any MCP client (Claude Desktop, Claude Code, Cursor and others) a user can
+ * say "find the gender of the names in this list" and reach the API without
+ * writing code.
  *
  * Kurulum:
  *   NAMEGENDER_API_KEY=ng_live_... npx namegender-mcp
@@ -32,9 +32,9 @@ import {
   formatResult,
 } from './tools.js';
 
-// Sürüm tek yerden, package.json'dan okunur: elle yazılan sürüm her
-// yayında ayrıca güncellenmek zorundaydı ve istemciye eski numarayı bildirirdi.
-// createRequire, JSON içe aktarma özniteliği olmayan Node 18'de de çalışır.
+// The version comes from package.json alone: a hand-written copy had to be
+// bumped separately on every release and reported a stale number to clients.
+// createRequire also works on Node 18, which lacks JSON import attributes.
 export const VERSION = createRequire(import.meta.url)('../package.json').version;
 
 export function createServer(client) {
@@ -106,11 +106,11 @@ export function createServer(client) {
 }
 
 /**
- * Hem okunur metin hem yapılandırılmış içerik döndürür.
+ * Returns both readable text and structured content.
  *
- * Metin modelin okuduğu şey; `structuredContent` ise alanlara doğrudan
- * erişmesi gerektiğinde kullanacağı ham gövde. İkisini birden vermek,
- * "cevabın yanında kanıtı da dursun" ilkesinin bu yüzeydeki karşılığı.
+ * The text is what the model reads; `structuredContent` is the raw body for
+ * when it needs a field directly. Giving both is how this server keeps the
+ * evidence next to every answer.
  */
 function text(summary, payload) {
   return {
@@ -123,8 +123,8 @@ async function main() {
   const apiKey = process.env.NAMEGENDER_API_KEY;
 
   if (!apiKey) {
-    // stderr'a yazılıyor: stdio taşımasında stdout PROTOKOLE ait, oraya
-    // yazılan her şey istemcide çözümleme hatasına dönüşür.
+    // Written to stderr: over the stdio transport stdout belongs to the
+    // protocol, and anything else written there breaks parsing in the client.
     process.stderr.write(
       'NAMEGENDER_API_KEY is not set. Get a key from the namegender.com dashboard.\n',
     );
@@ -139,8 +139,8 @@ async function main() {
   await createServer(client).connect(new StdioServerTransport());
 }
 
-// Modül test için de içe aktarılıyor; sunucu YALNIZCA doğrudan
-// çalıştırıldığında ayağa kalkar.
+// The module is also imported by the tests; the server starts ONLY when the
+// file is run directly.
 if (isEntryPoint()) {
   main().catch((error) => {
     process.stderr.write(`NameGender MCP failed to start: ${error.message}\n`);
@@ -149,13 +149,13 @@ if (isEntryPoint()) {
 }
 
 /**
- * Bu dosya komut satırından mı çalıştırıldı?
+ * Was this file run from the command line?
  *
- * `import.meta.url` ile `process.argv[1]`'i düz karşılaştırmak YETMİYOR:
- * `npx namegender-mcp` dosyayı `node_modules/.bin/namegender-mcp`
- * kısayolu üzerinden açar, argv[1] o kısayolun yoludur ve eşleşme hiç
- * tutmaz. Sonuç hatasız, sessizce kapanan bir sunucuydu. İki taraf da
- * gerçek dosya yoluna çevrilip karşılaştırılıyor.
+ * Comparing `import.meta.url` with `process.argv[1]` as strings is NOT enough:
+ * `npx namegender-mcp` runs the file through the `node_modules/.bin/namegender-mcp`
+ * symlink, argv[1] is that link's path, and the comparison never matches. The
+ * result was a server that exited silently. Both sides are resolved to the
+ * real file path before comparing.
  */
 function isEntryPoint() {
   if (!process.argv[1]) {
