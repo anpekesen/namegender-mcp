@@ -9,6 +9,8 @@ source and the name it matched.
 Works in any client that speaks the Model Context Protocol: Claude Desktop,
 Claude Code, Cursor and others.
 
+[![namegender-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/anpekesen/namegender-mcp/badges/card.svg)](https://glama.ai/mcp/servers/anpekesen/namegender-mcp)
+
 ## Setup
 
 Get an API key from the [namegender.com](https://namegender.com) dashboard.
