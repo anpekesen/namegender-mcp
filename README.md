@@ -1,5 +1,7 @@
 # NameGender MCP server
 
+[![namegender-mcp MCP server – quality and maintenance score on Glama](https://glama.ai/mcp/servers/anpekesen/namegender-mcp/badges/score.svg)](https://glama.ai/mcp/servers/anpekesen/namegender-mcp)
+
 Turns names, email addresses and usernames into a gender — **with the
 evidence next to every answer**: the probability, the sample size, the
 source and the name it matched.
