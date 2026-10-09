@@ -1,6 +1,6 @@
 {
   "name": "namegender-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "mcpName": "io.github.anpekesen/namegender",
   "description": "Model Context Protocol server for the NameGender API — gender, salutations, name checks and age from names, with the evidence behind every answer",
   "type": "module",
