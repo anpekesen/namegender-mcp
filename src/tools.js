@@ -10,9 +10,28 @@ import { NameGenderError } from './client.js';
 const COUNTRY = {
   type: 'string',
   description:
-    'Two-letter ISO 3166-1 country code (TR, DE, US). When given, the answer is ' +
-    'weighted by that country\'s data — the same name can have a different gender by country.',
-  pattern: '^[A-Za-z]{2}$',
+    'ISO 3166-1 country code, two or three letters (TR, DE, US or TUR, DEU, USA). When given, ' +
+    'the answer is weighted by that country\'s data — the same name can have a different gender by country.',
+  pattern: '^[A-Za-z]{2,3}$',
+};
+
+// Fallbacks for when the country is not known, as in a sign-up form: the API
+// uses country first, then the locale's region, then the IP. A locale without
+// a region ("en") sets no country.
+const LOCALE = {
+  type: 'string',
+  description:
+    'Language tag of the person, such as a browser\'s Accept-Language (it-IT, de-AT). Its region ' +
+    'is used as the country when `country` is not given; a tag without a region (en) sets none.',
+  maxLength: 35,
+};
+
+const IP = {
+  type: 'string',
+  description:
+    'IP address of the person (IPv4 or IPv6), used to look up the country when neither `country` ' +
+    'nor a locale with a region is given. It is not stored.',
+  maxLength: 45,
 };
 
 export const TOOL_DEFINITIONS = [
@@ -28,6 +47,8 @@ export const TOOL_DEFINITIONS = [
       properties: {
         name: { type: 'string', description: 'A first name, or a full name to extract the first name from.' },
         country: COUNTRY,
+        locale: LOCALE,
+        ip: IP,
       },
       required: ['name'],
     },
@@ -44,6 +65,8 @@ export const TOOL_DEFINITIONS = [
       properties: {
         email: { type: 'string', description: 'Email address.' },
         country: COUNTRY,
+        locale: LOCALE,
+        ip: IP,
       },
       required: ['email'],
     },
@@ -58,6 +81,8 @@ export const TOOL_DEFINITIONS = [
       properties: {
         username: { type: 'string', description: 'Username or handle.' },
         country: COUNTRY,
+        locale: LOCALE,
+        ip: IP,
       },
       required: ['username'],
     },
@@ -85,6 +110,8 @@ export const TOOL_DEFINITIONS = [
           description: 'Type of the values. Default: name.',
         },
         country: COUNTRY,
+        locale: LOCALE,
+        ip: IP,
       },
       required: ['names'],
     },
@@ -94,10 +121,10 @@ export const TOOL_DEFINITIONS = [
     title: 'Countries a name appears in',
     description:
       'Returns the countries where a name is recorded. WARNING: this is NOT a claim about ' +
-      'origin or ethnicity. Counted birth registrations are published for only seven ' +
-      'countries (US, UK, France, Canada, Spain, Ireland, Norway), so the ranking compares ' +
-      'those countries only; countries that publish no counts, such as Turkey or Japan, ' +
-      'appear in the attested list, not in the ranking.',
+      'origin or ethnicity. Counted birth registrations are published by only a small set of ' +
+      'countries (the US, UK, France, Spain and a few others), so the ranking compares those ' +
+      'countries only; countries that publish no counts, such as Turkey or Japan, appear in ' +
+      'the attested list, not in the ranking.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -154,7 +181,10 @@ export function formatResult(result) {
   }
 
   if (result.country) {
-    parts.push(`country ${result.country}`);
+    // Say when the country was inferred: "IT" from a locale is a guess about
+    // the person, not something the caller stated.
+    const inferred = result.country_source === 'locale' || result.country_source === 'ip';
+    parts.push(`country ${result.country}${inferred ? ` (from ${result.country_source})` : ''}`);
   }
 
   return parts.join(' · ');

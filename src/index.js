@@ -53,26 +53,26 @@ export function createServer(client) {
     try {
       switch (name) {
         case 'gender_from_name': {
-          const payload = await client.name(args.name, { country: args.country });
+          const payload = await client.name(args.name, countryHints(args));
 
           return text(formatResult(payload), payload);
         }
 
         case 'gender_from_email': {
-          const payload = await client.email(args.email, { country: args.country });
+          const payload = await client.email(args.email, countryHints(args));
 
           return text(formatResult(payload), payload);
         }
 
         case 'gender_from_username': {
-          const payload = await client.username(args.username, { country: args.country });
+          const payload = await client.username(args.username, countryHints(args));
 
           return text(formatResult(payload), payload);
         }
 
         case 'gender_bulk': {
           const payload = await client.bulk(args.names, {
-            country: args.country,
+            ...countryHints(args),
             type: args.type,
           });
 
@@ -112,6 +112,11 @@ export function createServer(client) {
  * when it needs a field directly. Giving both is how this server keeps the
  * evidence next to every answer.
  */
+/** The three country hints; the API picks country, then locale, then ip. */
+function countryHints(args) {
+  return { country: args.country, locale: args.locale, ip: args.ip };
+}
+
 function text(summary, payload) {
   return {
     content: [{ type: 'text', text: summary }],

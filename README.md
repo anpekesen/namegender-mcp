@@ -47,9 +47,19 @@ claude mcp add namegender -e NAMEGENDER_API_KEY=ng_live_... -- npx -y namegender
 | `name_countries` | Countries a name is recorded in — not a claim about origin |
 | `account_status` | Remaining credits, daily free quota, data version |
 
-The gender tools take an optional two-letter `country` code. The same name
-can have a different gender from one country to the next; with a code, the
-answer is weighted by that country's data.
+The gender tools take an optional `country` code, two or three letters (`IT`
+or `ITA`). The same name can have a different gender from one country to the
+next; with a code, the answer is weighted by that country's data.
+
+When the country is not known, as in a sign-up form, pass what you have
+instead: `locale` (a language tag such as `it-IT`, from the browser) or `ip`
+(the person's IP address, not stored). The API uses `country` first, then the
+locale's region, then the IP; a tag without a region (`en`) sets no country.
+The answer says when the country was inferred:
+
+```
+Andrea: male · probability 95% · country IT (from locale)
+```
 
 ## What an answer looks like
 
@@ -69,8 +79,8 @@ backed by nothing are not the same thing and should not look the same.
 ## Countries are not origin
 
 `name_countries` keeps two lists apart. Counted birth registrations are
-published for only seven countries (US, UK, France, Canada, Spain, Ireland,
-Norway), so the ranked shares compare those seven only. Every other country
+published by only a small set of countries (the US, UK, France, Spain and a
+few others), so the ranked shares compare those countries only. Every other country
 where the name is recorded appears in a separate, unranked list. Reading the
 ranking as "where the name comes from" is wrong: Mehmet ranks first in
 France there, and Turkey is not in the ranking at all.
@@ -86,7 +96,7 @@ key is invalid — and includes the request ID so support can trace it.
 | Variable | Default |
 |---|---|
 | `NAMEGENDER_API_KEY` | *(required)* |
-| `NAMEGENDER_BASE_URL` | `https://namegender.com/api/v1` |
+| `NAMEGENDER_BASE_URL` | `https://namegender.com/api/v1` (also when set but empty) |
 
 ## Development
 

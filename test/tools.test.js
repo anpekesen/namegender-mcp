@@ -204,3 +204,35 @@ test('falls back to the default address when the base URL is blank', async () =>
     assert.ok(fetchImpl.calls[0].url.startsWith('https://namegender.com/api/v1/'));
   }
 });
+
+test('lookup tools accept locale and ip next to country', () => {
+  for (const name of ['gender_from_name', 'gender_from_email', 'gender_from_username', 'gender_bulk']) {
+    const tool = TOOL_DEFINITIONS.find((t) => t.name === name);
+
+    assert.deepEqual(['country', 'locale', 'ip'].map((k) => k in tool.inputSchema.properties), [true, true, true], name);
+  }
+});
+
+test('the country pattern takes two- and three-letter codes', () => {
+  const pattern = new RegExp(TOOL_DEFINITIONS[0].inputSchema.properties.country.pattern);
+
+  assert.ok(pattern.test('IT') && pattern.test('ITA'));
+  assert.ok(!pattern.test('I') && !pattern.test('ITAL'));
+});
+
+test('sends locale and ip, and drops them when empty', async () => {
+  const fetchImpl = fakeFetch({ gender: 'male' });
+  const client = new NameGenderClient({ apiKey: 'ng_live_x', fetchImpl });
+
+  await client.name('Andrea', { country: undefined, locale: 'it-IT', ip: '' });
+
+  assert.deepEqual(JSON.parse(fetchImpl.calls[0].init.body), { name: 'Andrea', locale: 'it-IT' });
+});
+
+test('says when the country was inferred from a locale or an IP', () => {
+  const base = { query: 'Andrea', gender: 'male', probability: 95, country: 'IT' };
+
+  assert.match(formatResult({ ...base, country_source: 'locale' }), /country IT \(from locale\)/);
+  assert.match(formatResult({ ...base, country_source: 'ip' }), /country IT \(from ip\)/);
+  assert.match(formatResult({ ...base, country_source: 'country' }), /country IT$/);
+});
