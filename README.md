@@ -4,7 +4,9 @@
 
 Turns names, email addresses and usernames into a gender — **with the
 evidence next to every answer**: the probability, the sample size, the
-source and the name it matched.
+source and the name it matched. It also writes letter salutations in ten
+languages, flags junk names in form entries, and tells you how old the
+people with a first name are.
 
 Works in any client that speaks the Model Context Protocol: Claude Desktop,
 Claude Code, Cursor and others.
@@ -45,10 +47,16 @@ claude mcp add namegender -e NAMEGENDER_API_KEY=ng_live_... -- npx -y namegender
 | `gender_from_username` | Extracts a name from a username or handle |
 | `gender_bulk` | Up to 100 values in one request, with a match-rate summary |
 | `name_countries` | Countries a name is recorded in — not a claim about origin |
+| `salutation` | Opening line of a letter in the letter's language, with a neutral form when the gender is not certain |
+| `name_check` | Whether a name typed into a form looks real, with the reasons; never calls a name fake |
+| `age_from_name` | Median age and age ranges of the living people with a first name (US, France, Norway) |
 | `account_status` | Remaining credits, daily free quota, data version |
 
-The gender tools take an optional `country` code, two or three letters (`IT`
-or `ITA`). The same name can have a different gender from one country to the
+`salutation`, `name_check` and `age_from_name` take one `name` or up to 100
+`names` in a single call.
+
+The tools take an optional `country`: a code of two or three letters (`IT`
+or `ITA`) or the country name (`Italy`, `Italia`). The same name can have a different gender from one country to the
 next; with a code, the answer is weighted by that country's data.
 
 When the country is not known, as in a sign-up form, pass what you have
@@ -75,6 +83,23 @@ Kamon: male · probability 95% · no sample (unverified) · source wgnd
 
 The distinction is deliberate. A 95% backed by counted people and a 95%
 backed by nothing are not the same thing and should not look the same.
+
+## Salutations, name checks and ages
+
+```
+Anna Müller: Sehr geehrte Frau Müller, · informal "Liebe Anna," · female 100% · language de
+Kim Lee: Dear Kim Lee, · informal "Hi Kim," · neutral form (gender_unknown) · language en
+asdf qwerty: implausible · score 0/100 · signals: placeholder (high), keyboard_pattern (high)
+Jennifer Null: plausible · score 100/100 · no signals against it
+Brittany: median age 36 · half between 32 and 38 · 80% between 28 and 41 · born around 1990 · 353,775 living people · country US (default, no country given)
+```
+
+A salutation is never guessed: below the probability threshold (90 by
+default) the neutral form is used and the reason is given. A name check
+never calls a name fake; use it to flag a record, not to reject a person.
+An age describes the group of people with the name, not one person, so the
+range always comes with the median. Age covers the United States, France
+and Norway; another country returns no age and costs no credit.
 
 ## Countries are not origin
 

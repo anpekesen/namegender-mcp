@@ -52,6 +52,30 @@ export class NameGenderClient {
     return this.#post('/gender/bulk', { names, ...options });
   }
 
+  salutation(value, options = {}) {
+    return this.#post('/salutation', { name: value, ...options });
+  }
+
+  salutationBulk(names, options = {}) {
+    return this.#post('/salutation/bulk', { names, ...options });
+  }
+
+  nameCheck(value, options = {}) {
+    return this.#post('/name-check', { name: value, ...options });
+  }
+
+  nameCheckBulk(names, options = {}) {
+    return this.#post('/name-check/bulk', { names, ...options });
+  }
+
+  age(value, options = {}) {
+    return this.#post('/age', { name: value, ...options });
+  }
+
+  ageBulk(names, options = {}) {
+    return this.#post('/age/bulk', { names, ...options });
+  }
+
   account() {
     return this.#request('GET', '/me');
   }

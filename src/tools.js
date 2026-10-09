@@ -10,10 +10,12 @@ import { NameGenderError } from './client.js';
 const COUNTRY = {
   type: 'string',
   description:
-    'ISO 3166-1 country code, two or three letters (TR, DE, US or TUR, DEU, USA). When given, ' +
-    'the answer is weighted by that country\'s data — the same name can have a different gender by country.',
-  pattern: '^[A-Za-z]{2,3}$',
+    'Country as an ISO code (TR, DE, US or TUR, DEU, USA) or a country name (Germany, Deutschland). ' +
+    'When given, the answer is weighted by that country\'s data — the same name can have a different gender by country.',
+  maxLength: 60,
 };
+
+const NAMES = { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 100 };
 
 // Fallbacks for when the country is not known, as in a sign-up form: the API
 // uses country first, then the locale's region, then the IP. A locale without
@@ -138,6 +140,90 @@ export const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'salutation',
+    title: 'Salutation for a letter or email',
+    description:
+      'Writes the opening line of a letter or email for a name, in the language of the letter: ' +
+      '"Sehr geehrte Frau Müller," in German, "Sayın Ahmet Bey," in Turkish, "Madame," in French. ' +
+      'Returns formal, informal and neutral versions. When the gender is not certain enough, the ' +
+      'gendered form is NOT guessed: `form` is "neutral" and `reason` says why. Use the returned line ' +
+      'as it is; word order, punctuation and which name part is used differ by language. ' +
+      'Pass `names` instead of `name` for up to 100 at once.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Full name, e.g. "Anna Müller". Use `email` instead when there is no name.' },
+        names: { ...NAMES, description: 'Up to 100 full names (or email addresses with type "email"), answered in order.' },
+        email: { type: 'string', description: 'Email address, when no name is known: anna.mueller@ gives Frau Mueller.' },
+        type: { type: 'string', enum: ['name', 'email'], description: 'With `names`: what the values are. Default: name.' },
+        language: {
+          type: 'string',
+          description: 'Language of the letter, not of the name: en, en-US, en-GB, de, de-AT, de-CH, fr, es, it, pt, ' +
+            'pt-PT, pt-BR, nl, tr, pl, ja. Without it the locale\'s language is used, then the country\'s, then English.',
+          maxLength: 35,
+        },
+        gender: {
+          type: 'string', enum: ['male', 'female', 'neutral'],
+          description: 'Known gender, e.g. from a CRM field. Skips the lookup.',
+        },
+        title: { type: 'string', description: 'Academic title to include, e.g. "Dr."', maxLength: 40 },
+        min_probability: {
+          type: 'integer', minimum: 50, maximum: 100,
+          description: 'Below this gender probability the neutral form is used. Default 90.',
+        },
+        country: COUNTRY,
+        locale: LOCALE,
+        ip: IP,
+      },
+    },
+  },
+  {
+    name: 'name_check',
+    title: 'Does a name look real?',
+    description:
+      'Says whether a name typed into a form looks like a real person\'s name, with the reasons: ' +
+      'keyboard mashing ("asdf qwerty"), placeholders ("Test Test", "John Doe"), fictional characters, ' +
+      'profanity, digits or an email address in the name field. Returns an assessment (plausible, ' +
+      'suspicious or implausible), a 0-100 score and the signals. It never calls a name fake: use it ' +
+      'to flag a record for review, not to reject a person. Real names such as Jennifer Null pass. ' +
+      'Pass `names` instead of `name` for up to 100 at once.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'The name as typed into the form.' },
+        names: { ...NAMES, description: 'Up to 100 names, answered in order.' },
+        country: COUNTRY,
+        locale: LOCALE,
+        ip: IP,
+      },
+    },
+  },
+  {
+    name: 'age_from_name',
+    title: 'Age of the people with a first name',
+    description:
+      'How old the living people with a first name are: the median age, the middle half and the ' +
+      'middle 80%, from birth records and life tables. "Brittany" in the US: median 36, half between ' +
+      '32 and 38. It describes a GROUP, not a person: always report the range with the median, and ' +
+      'never use it to decide anything about one person. Covered: US, FR and NO; without a country ' +
+      'the US series is used. Another country returns no age and costs nothing. ' +
+      'Pass `names` instead of `name` for up to 100 at once.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'A first name, or a full name to take the first name from.' },
+        names: { ...NAMES, description: 'Up to 100 names, answered in order.' },
+        gender: {
+          type: 'string', enum: ['male', 'female'],
+          description: 'Use only one gender\'s records. Matters for names that moved between genders: male Leslies are much older than female ones.',
+        },
+        country: COUNTRY,
+        locale: LOCALE,
+        ip: IP,
+      },
+    },
+  },
+  {
     name: 'account_status',
     title: 'Account and remaining credits',
     description:
@@ -235,6 +321,108 @@ export function formatCountries(payload) {
   }
 
   return lines.join('\n');
+}
+
+/** One salutation: the formal line first, then why it is neutral if it is. */
+export function formatSalutation(result) {
+  const s = result.salutation ?? {};
+  const parts = [`${result.query ?? result.name ?? ''}: ${s.formal ?? '—'}`];
+
+  parts.push(`informal "${s.informal ?? ''}"`);
+
+  if (result.form === 'neutral') {
+    parts.push(`neutral form${result.reason ? ` (${result.reason})` : ''}`);
+  } else if (result.form === 'organization') {
+    parts.push('organization');
+  } else if (typeof result.probability === 'number') {
+    parts.push(`${result.gender} ${result.probability}%`);
+  }
+
+  if (result.language) {
+    parts.push(`language ${result.language}`);
+  }
+
+  return parts.join(' · ');
+}
+
+export function formatSalutations(payload) {
+  const summary = payload.summary ?? {};
+  const lines = [
+    `${summary.total ?? 0} names · ${summary.gendered ?? 0} gendered · ${summary.neutral ?? 0} neutral · ` +
+    `${summary.organization ?? 0} organization`,
+    '',
+  ];
+
+  for (const result of payload.results ?? []) {
+    lines.push(formatSalutation(result));
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * One name check. Only the signals that count against a name are listed: info
+ * and positive signals explain the score but are not a reason to look again.
+ */
+export function formatNameCheck(result) {
+  const concerns = [...new Set((result.signals ?? [])
+    .filter((s) => s.severity !== 'info' && s.severity !== 'positive')
+    .map((s) => `${s.code} (${s.severity})`))];
+
+  return [
+    `${result.query ?? ''}: ${result.assessment ?? 'unknown'}`,
+    `score ${result.score ?? 0}/100`,
+    concerns.length > 0 ? `signals: ${concerns.join(', ')}` : 'no signals against it',
+  ].join(' · ');
+}
+
+export function formatNameChecks(payload) {
+  const summary = payload.summary ?? {};
+  const lines = [
+    `${summary.total ?? 0} names · ${summary.plausible ?? 0} plausible · ${summary.suspicious ?? 0} suspicious · ` +
+    `${summary.implausible ?? 0} implausible`,
+    '',
+  ];
+
+  for (const result of payload.results ?? []) {
+    lines.push(formatNameCheck(result));
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * One age estimate. The range is written next to the median every time: a
+ * median alone reads as one person's age, which this is not.
+ */
+export function formatAge(result) {
+  const who = `${result.name ?? ''}${result.gender ? ` (${result.gender})` : ''}`;
+
+  if (result.age === null || result.age === undefined) {
+    return `${who}: no age · ${result.reason ?? 'unknown'}${result.country ? ` · country ${result.country}` : ''}`;
+  }
+
+  const parts = [
+    `${who}: median age ${result.age}`,
+    `half between ${result.age_range.low} and ${result.age_range.high}`,
+    `80% between ${result.age_range_80.low} and ${result.age_range_80.high}`,
+    `born around ${result.birth_year}`,
+    `${(result.sample_size ?? 0).toLocaleString('en-US')} living people`,
+  ];
+
+  const defaulted = result.country_source === 'default';
+  const inferred = result.country_source === 'locale' || result.country_source === 'ip';
+  parts.push(`country ${result.country}${defaulted ? ' (default, no country given)' : inferred ? ` (from ${result.country_source})` : ''}`);
+
+  return parts.join(' · ');
+}
+
+export function formatAges(payload) {
+  return [
+    `${(payload.results ?? []).length} names · ${payload.credits_charged ?? 0} credits`,
+    '',
+    ...(payload.results ?? []).map(formatAge),
+  ].join('\n');
 }
 
 export function formatAccount(payload) {

@@ -26,10 +26,16 @@ import { NameGenderClient, DEFAULT_BASE_URL } from './client.js';
 import {
   TOOL_DEFINITIONS,
   formatAccount,
+  formatAge,
+  formatAges,
   formatBulk,
   formatCountries,
   formatError,
+  formatNameCheck,
+  formatNameChecks,
   formatResult,
+  formatSalutation,
+  formatSalutations,
 } from './tools.js';
 
 // The version comes from package.json alone: a hand-written copy had to be
@@ -83,6 +89,49 @@ export function createServer(client) {
           const payload = await client.countries(args.name, { limit: args.limit });
 
           return text(formatCountries(payload), payload);
+        }
+
+        case 'salutation': {
+          const options = {
+            language: args.language, gender: args.gender, title: args.title,
+            min_probability: args.min_probability, ...countryHints(args),
+          };
+
+          if (Array.isArray(args.names)) {
+            const payload = await client.salutationBulk(args.names, { ...options, type: args.type });
+
+            return text(formatSalutations(payload), payload);
+          }
+
+          const payload = await client.salutation(args.name, { ...options, email: args.email });
+
+          return text(formatSalutation(payload), payload);
+        }
+
+        case 'name_check': {
+          if (Array.isArray(args.names)) {
+            const payload = await client.nameCheckBulk(args.names, countryHints(args));
+
+            return text(formatNameChecks(payload), payload);
+          }
+
+          const payload = await client.nameCheck(args.name, countryHints(args));
+
+          return text(formatNameCheck(payload), payload);
+        }
+
+        case 'age_from_name': {
+          const options = { gender: args.gender, ...countryHints(args) };
+
+          if (Array.isArray(args.names)) {
+            const payload = await client.ageBulk(args.names, options);
+
+            return text(formatAges(payload), payload);
+          }
+
+          const payload = await client.age(args.name, options);
+
+          return text(formatAge(payload), payload);
         }
 
         case 'account_status': {

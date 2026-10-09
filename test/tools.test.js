@@ -2,7 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { NameGenderClient, NameGenderError } from '../src/client.js';
-import { formatResult, formatBulk, formatCountries, formatAccount, formatError, TOOL_DEFINITIONS } from '../src/tools.js';
+import {
+  formatResult, formatBulk, formatCountries, formatAccount, formatError, formatSalutation, formatNameCheck,
+  formatAge, formatAges, TOOL_DEFINITIONS,
+} from '../src/tools.js';
 
 /** Fake fetch that records the body and headers. */
 function fakeFetch(response, status = 200) {
@@ -143,7 +146,7 @@ test('the account summary shows remaining credits and that they stay on the bala
 });
 
 test('every tool has a name, a description and a schema', () => {
-  assert.equal(TOOL_DEFINITIONS.length, 6);
+  assert.equal(TOOL_DEFINITIONS.length, 9);
 
   for (const tool of TOOL_DEFINITIONS) {
     assert.ok(tool.name, 'ad zorunlu');
@@ -213,11 +216,14 @@ test('lookup tools accept locale and ip next to country', () => {
   }
 });
 
-test('the country pattern takes two- and three-letter codes', () => {
-  const pattern = new RegExp(TOOL_DEFINITIONS[0].inputSchema.properties.country.pattern);
+test('the country field takes codes and country names', () => {
+  // The API converts "Germany" and "Deutschland" to DE since 9 October 2026; a
+  // two-or-three-letter pattern here would reject them before they reach it.
+  const country = TOOL_DEFINITIONS[0].inputSchema.properties.country;
 
-  assert.ok(pattern.test('IT') && pattern.test('ITA'));
-  assert.ok(!pattern.test('I') && !pattern.test('ITAL'));
+  assert.equal(country.pattern, undefined);
+  assert.equal(country.maxLength, 60);
+  assert.match(country.description, /Deutschland/);
 });
 
 test('sends locale and ip, and drops them when empty', async () => {
@@ -235,4 +241,64 @@ test('says when the country was inferred from a locale or an IP', () => {
   assert.match(formatResult({ ...base, country_source: 'locale' }), /country IT \(from locale\)/);
   assert.match(formatResult({ ...base, country_source: 'ip' }), /country IT \(from ip\)/);
   assert.match(formatResult({ ...base, country_source: 'country' }), /country IT$/);
+});
+
+test('the salutation, name check and age tools call their endpoints, single and bulk', async () => {
+  const fetchImpl = fakeFetch({});
+  const client = new NameGenderClient({ apiKey: 'k', fetchImpl });
+
+  await client.salutation('Anna Müller', { language: 'de', gender: undefined });
+  await client.salutationBulk(['Anna Müller'], { language: 'de', type: 'name' });
+  await client.nameCheck('asdf qwerty');
+  await client.nameCheckBulk(['asdf qwerty']);
+  await client.age('Brittany', { gender: 'female', country: '' });
+  await client.ageBulk(['Kari'], { country: 'NO' });
+
+  assert.deepEqual(fetchImpl.calls.map((c) => c.url.replace('https://namegender.com/api/v1', '')), [
+    '/salutation', '/salutation/bulk', '/name-check', '/name-check/bulk', '/age', '/age/bulk',
+  ]);
+  assert.deepEqual(JSON.parse(fetchImpl.calls[0].init.body), { name: 'Anna Müller', language: 'de' });
+  assert.deepEqual(JSON.parse(fetchImpl.calls[4].init.body), { name: 'Brittany', gender: 'female' });
+});
+
+test('a salutation says when it fell back to the neutral form', () => {
+  const gendered = formatSalutation({
+    query: 'Anna Müller', form: 'gendered', reason: null, gender: 'female', probability: 98, language: 'de',
+    salutation: { formal: 'Sehr geehrte Frau Müller,', informal: 'Liebe Anna,', neutral: 'Guten Tag Anna Müller,' },
+  });
+  const neutral = formatSalutation({
+    query: 'Kim Lee', form: 'neutral', reason: 'gender_unknown', gender: null, language: 'en',
+    salutation: { formal: 'Dear Kim Lee,', informal: 'Hi Kim,', neutral: 'Dear Kim Lee,' },
+  });
+
+  assert.match(gendered, /^Anna Müller: Sehr geehrte Frau Müller, · informal "Liebe Anna," · female 98% · language de$/);
+  assert.match(neutral, /neutral form \(gender_unknown\)/);
+});
+
+test('a name check lists only the signals that count against the name', () => {
+  const text = formatNameCheck({
+    query: 'asdf qwerty', assessment: 'implausible', score: 0,
+    signals: [
+      { code: 'keyboard_pattern', severity: 'high', part: 'first_name', value: 'asdf' },
+      { code: 'keyboard_pattern', severity: 'high', part: 'last_name', value: 'qwerty' },
+      { code: 'first_name_attested', severity: 'positive', part: 'first_name', value: 'asdf' },
+    ],
+  });
+
+  assert.equal(text, 'asdf qwerty: implausible · score 0/100 · signals: keyboard_pattern (high)');
+  assert.match(formatNameCheck({ query: 'Jennifer Null', assessment: 'plausible', score: 96, signals: [] }), /no signals against it/);
+});
+
+test('an age always comes with its range, and says when the US was assumed', () => {
+  const brittany = {
+    name: 'Brittany', gender: null, age: 36, age_range: { low: 32, high: 38 }, age_range_80: { low: 28, high: 41 },
+    birth_year: 1990, sample_size: 353775, country: 'US', country_source: 'default', reason: null,
+  };
+
+  assert.equal(formatAge(brittany),
+    'Brittany: median age 36 · half between 32 and 38 · 80% between 28 and 41 · born around 1990 · ' +
+    '353,775 living people · country US (default, no country given)');
+  assert.equal(formatAge({ name: 'Andrea', age: null, reason: 'country_not_covered', country: 'DE' }),
+    'Andrea: no age · country_not_covered · country DE');
+  assert.match(formatAges({ credits_charged: 1, results: [brittany] }), /^1 names · 1 credits\n\nBrittany: median age 36/);
 });

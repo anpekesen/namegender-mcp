@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.anpekesen/namegender",
   "title": "NameGender",
-  "description": "Gender from names, emails and usernames, with probability, sample size and source on every answer.",
+  "description": "Gender, salutations, name checks and age from names, with the evidence on every answer.",
   "repository": {
     "url": "https://github.com/anpekesen/namegender-mcp",
     "source": "github"
