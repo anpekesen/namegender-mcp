@@ -133,7 +133,7 @@ async function main() {
 
   const client = new NameGenderClient({
     apiKey,
-    baseUrl: process.env.NAMEGENDER_BASE_URL ?? DEFAULT_BASE_URL,
+    baseUrl: process.env.NAMEGENDER_BASE_URL?.trim() || DEFAULT_BASE_URL,
   });
 
   await createServer(client).connect(new StdioServerTransport());

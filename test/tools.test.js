@@ -193,3 +193,14 @@ test('the server, package.json and server.json report the same version', async (
   assert.equal(server.packages[0].identifier, pkg.name);
   assert.equal(server.name, pkg.mcpName);
 });
+
+test('falls back to the default address when the base URL is blank', async () => {
+  for (const baseUrl of ['', '   ', undefined]) {
+    const fetchImpl = fakeFetch({ gender: 'female' });
+    const client = new NameGenderClient({ apiKey: 'ng_live_x', baseUrl, fetchImpl });
+
+    await client.name('Ayşe');
+
+    assert.ok(fetchImpl.calls[0].url.startsWith('https://namegender.com/api/v1/'));
+  }
+});

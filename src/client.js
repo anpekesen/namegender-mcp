@@ -25,7 +25,9 @@ export class NameGenderClient {
     }
 
     this.apiKey = apiKey;
-    this.baseUrl = baseUrl.replace(/\/+$/, '');
+    // An empty value means "not set": MCP clients such as the Glama inspector
+    // pass every declared variable, blank or not.
+    this.baseUrl = (baseUrl?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.timeoutMs = timeoutMs;
     this.fetchImpl = fetchImpl;
   }
